@@ -1,0 +1,17 @@
+<launch>
+    <!-- 定义一个参数传递给节点 -->
+    <arg name="octomap_file" default="$(find mapping_simulator)/octo_binary/octomap.bt" />
+
+    <!-- 启动 esdf_map_generator_node 并传递参数 -->
+    <node name="mapping_simulator_node" pkg="mapping_simulator" type="mapping_simulator_node" output="screen">
+        <param name="octomap_file" value="$(arg octomap_file)" />
+
+
+        
+    </node>
+
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find mapping_simulator)/rviz/esdf_gen.rviz" ></node>
+
+
+
+  </launch>
