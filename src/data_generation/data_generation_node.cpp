@@ -1,4 +1,5 @@
-#include "path_planner/path_planner.h"
+#include "path_planner/rrtstar.h"
+#include "path_planner/visualization.h"
 #include <chrono>
 
 using Clock = std::chrono::high_resolution_clock;
@@ -6,92 +7,106 @@ using Clock = std::chrono::high_resolution_clock;
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "dataset_generator");
-    
+
+
+
     ros::NodeHandle nh;
-    ros::NodeHandle nh_private_("~");
-    Visualization visualization(nh, "prm_visual");
-    
+    Visualization visualization(nh, "rrtstar_vis");
+
     // ===== 地图列表 =====
     std::vector<std::string> map_list = {
         "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap.bt",
         "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap.bt"
     };
 
-
     auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
-
 
     for (const auto& map_file : map_list)
     {
         ms->resetMap(map_file);
 
-        PathPlanner planner(ms, true, 1.0);
+        RRTStarPlanner planner(ms, true, 0.75);
 
-        for (int i = 0; i < 10; ++i)
+
+        for (int i = 0; i < 100; ++i)
         {
-            double sx, sy, sz, gx, gy, gz;
 
-            planner.sampleValidStartGoal(sx, sy, sz, gx, gy, gz);
+            // double sx, sy, sz, gx, gy, gz;
+            double sx = -10, sy = -10, sz = 1.5;
+            double gx =  10, gy = 10, gz = 2.0;
+            // ===== 随机 start / goal =====
+            planner.sampleValidStartGoal(sx, sy, sz, gx, gy, gz, 10.0);
+            
 
             planner.setStart(sx, sy, sz);
             planner.setGoal(gx, gy, gz);
+            
+            
+            bool success=planner.solve(8.0, 1.0 , 1.0);
 
-            if (!planner.solve(2))
+
+
+            if (success)
             {
-                ROS_WARN("Plan failed");
-                continue;
-            }
+                ROS_INFO("RRT* success!");
 
-            // =========================
-            // ✅ 1. 可视化 PRM + 路径
-            // =========================
+                // ===== 1. path =====
+                auto path_nodes = planner.getSolutionPath();
 
-            auto path = planner.extractSolutionPath();
-            visualization.setPathData(path);
+                visualization.setPathData(path_nodes);
 
-            auto [nodes, edges] = planner.extractGraph();
-            visualization.setGraphData(nodes, edges);
+                auto [nodes, edges] = planner.getGraph();
+                visualization.setGraphData(nodes, edges);
 
-            visualization.visualizeStartAndGoal(
-                sx, sy, sz,
-                gx, gy, gz
-            );
+                visualization.visualizeStartAndGoal(sx, sy, sz, gx, gy, gz);
 
-            // 🔥 很关键（刷新RViz）
-            ros::spinOnce();
+                ros::spinOnce();
 
-            // =========================
-            // ✅ 2. 数据采样
-            // =========================
 
-            auto sampled = planner.resamplePath(path, 0.1);
-
-            ROS_INFO("Path length: %zu", sampled.size());
-
-            for (size_t k = 0; k < sampled.size(); ++k)
-            {
-                Eigen::Vector3d pose = sampled[k];
-
-                // ===== yaw =====
-                double yaw = 0.0;
-                if (k < sampled.size() - 1)
+                // =========================
+                // ✅ 2. 转成 Eigen path
+                // =========================
+                std::vector<Eigen::Vector3d> path;
+                for (auto& n : path_nodes)
                 {
-                    Eigen::Vector3d dir = sampled[k+1] - sampled[k];
-                    yaw = std::atan2(dir.y(), dir.x());
+                    path.emplace_back(n->pos);
                 }
 
-                // ===== pitch / roll =====
-                double pitch = 30.0 * M_PI / 180.0;
-                double roll  = 0.0;
+                // =========================
+                // ✅ 4. 遍历轨迹 → 生成数据
+                // =========================
+                for (size_t k = 0; k < path.size(); ++k)
+                {
+                    Eigen::Vector3d pose = path[k];
 
-                Eigen::Matrix3d R =
-                    (Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-                    Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-                    Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()))
-                    .toRotationMatrix();
+                    // ===== yaw（沿路径方向）=====
+                    double yaw=0;
+                    if (k < path.size() - 1)
+                    {
+                        Eigen::Vector3d dir = path[k+1] - path[k];
+                        yaw = std::atan2(dir.y(), dir.x());
+                    }
+                    else 
+                    {   //最后一个航向角和倒数第二个一致
+                        Eigen::Vector3d dir = path[k] - path[k-1];
+                        yaw = std::atan2(dir.y(), dir.x());
+                    }
 
 
+                    // ===== pitch / roll =====
+                    double pitch = 30.0 * M_PI / 180.0;
+                    double roll  = 0.0;
 
+                    // ===== 构造 R =====
+                    Eigen::Matrix3d R =
+                        (Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
+                        Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+                        Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()))
+                        .toRotationMatrix();
+
+                    // =========================
+                    // ✅ 5. Lidar（计时）
+                    // =========================
                     auto t1 = Clock::now();
 
                     pcl::PointCloud<pcl::PointXYZ> lidar_pointcloud;
@@ -99,28 +114,33 @@ int main(int argc, char **argv)
 
                     auto t2 = Clock::now();
 
-                    // ===== Local Map =====
+                    // =========================
+                    // ✅ 6. Local Map（计时）
+                    // =========================
                     pcl::PointCloud<pcl::PointXYZ> occ_pointcloud, free_pointcloud;
                     ms->extractLocalMap(pose, occ_pointcloud, free_pointcloud);
 
                     auto t3 = Clock::now();
 
-
-                    // ===== 打印时间 =====
                     double lidar_time =
-                    std::chrono::duration<double, std::milli>(t2 - t1).count();
+                        std::chrono::duration<double, std::milli>(t2 - t1).count();
+
                     double map_time =
-                    std::chrono::duration<double, std::milli>(t3 - t2).count();
+                        std::chrono::duration<double, std::milli>(t3 - t2).count();
 
-                    // ROS_INFO("Time: lidar=%.2f ms, local_map=%.2f ms",
-                    //         lidar_time, map_time);
+                    // ROS_INFO("Time: lidar=%.2f ms, map=%.2f ms | pts: %zu",
+                    //         lidar_time, map_time, lidar_pointcloud.size());
 
-                    // ROS_INFO("Sample: lidar=%zu, occ=%zu",
-                    //     lidar_pointcloud.size(),
-                    //     occ_pointcloud.size());
+                    ros::spinOnce();
+                    // ros::Duration(0.5).sleep();
 
-                ros::spinOnce();
+                }
             }
+            else
+            {
+                ROS_WARN("RRT* failed");
+            }
+
         }
     }
 

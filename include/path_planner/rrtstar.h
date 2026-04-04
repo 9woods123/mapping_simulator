@@ -27,6 +27,9 @@ public:
 
     std::vector<Node3D*> getSolutionPath() const;
     std::pair<std::vector<Node3D*>, std::vector<Edge3D>> getGraph() const;
+    
+    void sampleValidStartGoal(double& sx, double& sy, double& sz,
+    double& gx, double& gy, double& gz,double distance=5.0);
 
 private:
     std::shared_ptr<mapping_simulator::MappingSimulator> ms_;
@@ -53,7 +56,7 @@ private:
     Node3D* nearestNeighbor(const Eigen::Vector3d& pt);
     bool isSegmentFree(const Eigen::Vector3d& p1, const Eigen::Vector3d& p2, double step = 0.1);
     double distance(const Eigen::Vector3d& a, const Eigen::Vector3d& b) const;
-    void rewire(Node3D* new_node, double radius = 1.0);
+    void rewire(Node3D* new_node, double radius = 5.0);
     
 };
 

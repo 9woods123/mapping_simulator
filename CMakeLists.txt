@@ -65,8 +65,8 @@ target_link_libraries(rrtstar
 )
 
 
-# add_executable(data_generation_node src/data_generation/data_generation_node.cpp)
-# target_link_libraries(data_generation_node
-#  path_planner_lib
-#  mapping_simulator
-# )
+add_executable(data_generation_node src/data_generation/data_generation_node.cpp)
+target_link_libraries(data_generation_node
+ rrtstar_lib
+ mapping_simulator
+)

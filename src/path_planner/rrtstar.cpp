@@ -71,6 +71,7 @@ bool RRTStarPlanner::isSegmentFree(const Eigen::Vector3d& p1, const Eigen::Vecto
 // 核心 RRT* 算法
 bool RRTStarPlanner::solve(double time_limit, double step_size, double goal_radius)
 {
+
     nodes_.clear();
     edges_.clear();
 
@@ -174,6 +175,45 @@ std::pair<std::vector<Node3D*>, std::vector<Edge3D>> RRTStarPlanner::getGraph() 
 }
 
 
+void RRTStarPlanner::sampleValidStartGoal(
+    double& sx, double& sy, double& sz,
+    double& gx, double& gy, double& gz, double distance)
+{
+    int max_trials = 1000;   // 防止死循环
+
+    for (int i = 0; i < max_trials; ++i)
+    {
+        // ===== 随机采样 =====
+        sx = dist_x_(rng_);
+        sy = dist_y_(rng_);
+
+        // 地上 目标
+        std::uniform_real_distribution<double> onground_dist_z = std::uniform_real_distribution<double>(0.5*max_z_, max_z_);
+
+        sz = is_2D_ ? fixed_z_ : onground_dist_z(rng_);
+
+        gx = dist_x_(rng_);
+        gy = dist_y_(rng_);
+        gz = is_2D_ ? fixed_z_ : onground_dist_z(rng_);
+
+        // ===== 碰撞检测 =====
+        bool start_valid = !ms_->isPointOccupiedWithVolume(sx, sy, sz, 0.3);
+        bool goal_valid  = !ms_->isPointOccupiedWithVolume(gx, gy, gz, 0.3);
+
+        // ===== 距离约束（非常重要 ⭐）=====
+        double dist = (Eigen::Vector3d(sx, sy, sz) -
+                       Eigen::Vector3d(gx, gy, gz)).norm();
+
+        if (start_valid && goal_valid && dist > distance)
+        {
+            break;
+        }
+    }
+
+
+}
+
+
 int main(int argc, char** argv)
 {
     ros::init(argc, argv, "rrtstar_test");
@@ -191,8 +231,8 @@ int main(int argc, char** argv)
     RRTStarPlanner planner(ms, false, 1.0);
 
     // ===== start / goal =====
-    double sx = -10, sy = -6, sz = 1.5;
-    double gx =  5, gy = 5, gz = 2.0;
+    double sx = -10, sy = -10, sz = 1.5;
+    double gx =  10, gy = 10, gz = 2.0;
 
     planner.setStart(sx, sy, sz);
     planner.setGoal(gx, gy, gz);

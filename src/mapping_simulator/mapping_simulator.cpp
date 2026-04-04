@@ -31,7 +31,7 @@ MappingSimulator::MappingSimulator()
 
     timer_ = nh_.createTimer(ros::Duration(1.0), &MappingSimulator::publishCallback, this);
 
-    simdata_pub_timer_ = nh_.createTimer(ros::Duration(1.0), &MappingSimulator::simdata_pubCallback, this);
+    simdata_pub_timer_ = nh_.createTimer(ros::Duration(0.05), &MappingSimulator::simdata_pubCallback, this);
 
     loadOctomap();
 }
