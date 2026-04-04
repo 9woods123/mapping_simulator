@@ -8,9 +8,9 @@ MappingSimulator::MappingSimulator()
 
     nh_private_.param("octomap_file", octomap_file_, std::string("/path/to/default/octomap.bt"));
     //lidar params
-    nh_private_.param("hrz_lines", hrz_lines_, 360);
+    nh_private_.param("hrz_lines", hrz_lines_, 120);
     nh_private_.param("vtc_lines", vtc_lines_, 16);
-    nh_private_.param("vtc_fov_deg", vtc_fov_deg, 30.0);
+    nh_private_.param("vtc_fov_deg", vtc_fov_deg, 60.0);
     nh_private_.param("max_range", max_range_, 10.0); // meter
 
     //local map params
@@ -30,7 +30,9 @@ MappingSimulator::MappingSimulator()
     lidar_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("lidar_points", 1);
 
     timer_ = nh_.createTimer(ros::Duration(1.0), &MappingSimulator::publishCallback, this);
-    
+
+    simdata_pub_timer_ = nh_.createTimer(ros::Duration(1.0), &MappingSimulator::simdata_pubCallback, this);
+
     loadOctomap();
 }
 
@@ -58,6 +60,44 @@ void MappingSimulator::loadOctomap() {
     resolution_ = tree_.getResolution();
 
     ROS_INFO("Loaded OctoMap with %zu nodes at resolution %f", tree_.size(), resolution_);
+
+    // 遍历 OctoMap 的节点
+    for (octomap::OcTree::iterator it = tree_.begin(); it != tree_.end(); ++it) {
+        pcl::PointXYZ point(it.getX(), it.getY(), it.getZ());
+        if (tree_.isNodeOccupied(*it)) {
+            octo_cloud_->push_back(point); // 占用空间
+        } else {
+            freespace_cloud_->push_back(point); // 自由空间
+        }
+    }
+    //大概率是这里少了点，由于free space的合并？
+
+    ROS_INFO("Extracted %zu occupied points, %zu free points", octo_cloud_->size(), freespace_cloud_->size());
+
+    // 生成 ESDF
+    // generateESDF();
+    convertOctomapToRosMsg(); 
+    // convertEsdfToPointCloudMsg();
+}
+
+
+void MappingSimulator::resetMap(std::string octomap_file_)
+{
+
+    tree_.clear();
+    octo_cloud_->clear();
+    freespace_cloud_->clear();
+
+    if (!tree_.readBinary(octomap_file_)) {
+        ROS_ERROR("Failed to reset OctoMap from file: %s", octomap_file_.c_str());
+        return;
+    }
+
+    // 从 OctoMap 中获取分辨率
+    
+    resolution_ = tree_.getResolution();
+
+    ROS_INFO("Reset OctoMap with %zu nodes at resolution %f", tree_.size(), resolution_);
 
     // 遍历 OctoMap 的节点
     for (octomap::OcTree::iterator it = tree_.begin(); it != tree_.end(); ++it) {
@@ -346,9 +386,11 @@ bool MappingSimulator::isPointOccupiedWithVolume(double x, double y, double z, d
 
 void MappingSimulator::simulateLidar(
     const Eigen::Vector3d& origin,
-    const Eigen::Matrix3d& R)
+    const Eigen::Matrix3d& R,
+    pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud
+    )
 {
-    pcl::PointCloud<pcl::PointXYZ> cloud;
+    lidar_pointcloud.clear();
 
     double hrz_res = 2 * M_PI / hrz_lines_;
     double vtc_res = vtc_fov_rad_ / vtc_lines_;
@@ -376,52 +418,45 @@ void MappingSimulator::simulateLidar(
             bool hit = tree_.castRay(ray_origin, ray_dir, end, true, max_range_);
 
             if (hit) {
-                cloud.emplace_back(end.x(), end.y(), end.z());
+                lidar_pointcloud.emplace_back(end.x(), end.y(), end.z());
             } else {
+                continue;
                 // // 没撞到 → 最大距离
                 // Eigen::Vector3d far = origin + dir * max_range_;
-                // cloud.emplace_back(far.x(), far.y(), far.z());
+                // lidar_pointcloud.emplace_back(far.x(), far.y(), far.z());
             }
         }
     }
 
     // 发布
-    sensor_msgs::PointCloud2 msg;
-    pcl::toROSMsg(cloud, msg);
-    msg.header.frame_id = "map";
-    msg.header.stamp = ros::Time::now();
+    pcl::toROSMsg(lidar_pointcloud, lidar_pointcloud_msg_);
+    lidar_pointcloud_msg_.header.frame_id = "map";
+    lidar_pointcloud_msg_.header.stamp = ros::Time::now();
 
-    lidar_pub_.publish(msg);
 }
 
 
-void MappingSimulator::extractLocalMap(
-    const Eigen::Vector3d& center,
-    double size_x, double size_y, double size_z)
+void MappingSimulator::extractLocalMap(const Eigen::Vector3d& center, pcl::PointCloud<pcl::PointXYZ> & local_occ,
+                                        pcl::PointCloud<pcl::PointXYZ>& local_free)
 {
-    pcl::PointCloud<pcl::PointXYZ> local_occ;
-    pcl::PointCloud<pcl::PointXYZ> local_free;
+    local_occ.clear();
+    local_free.clear();
 
-    double min_x = center.x() - size_x / 2.0;
-    double max_x = center.x() + size_x / 2.0;
-    double min_y = center.y() - size_y / 2.0;
-    double max_y = center.y() + size_y / 2.0;
-    double min_z = center.z() - size_z / 2.0;
-    double max_z = center.z() + size_z / 2.0;
+    double min_x = center.x() - local_map_size_x / 2.0;
+    double max_x = center.x() + local_map_size_x / 2.0;
+    double min_y = center.y() - local_map_size_y / 2.0;
+    double max_y = center.y() + local_map_size_y / 2.0;
+    double min_z = center.z() - local_map_size_z / 2.0;
+    double max_z = center.z() + local_map_size_z / 2.0;
 
-    for (octomap::OcTree::leaf_iterator it = tree_.begin_leafs(),
-         end = tree_.end_leafs(); it != end; ++it)
+    octomap::point3d min_pt(min_x, min_y, min_z);
+    octomap::point3d max_pt(max_x, max_y, max_z);
+
+    for (auto it = tree_.begin_leafs_bbx(min_pt, max_pt),
+            end = tree_.end_leafs_bbx();
+        it != end; ++it)
     {
-        double x = it.getX();
-        double y = it.getY();
-        double z = it.getZ();
-
-        if (x < min_x || x > max_x ||
-            y < min_y || y > max_y ||
-            z < min_z || z > max_z)
-            continue;
-
-        pcl::PointXYZ pt(x, y, z);
+        pcl::PointXYZ pt(it.getX(), it.getY(), it.getZ());
 
         if (tree_.isNodeOccupied(*it))
             local_occ.push_back(pt);
@@ -429,25 +464,12 @@ void MappingSimulator::extractLocalMap(
             local_free.push_back(pt);
     }
 
-    // ===== 发布 occupied =====
-    sensor_msgs::PointCloud2 occ_msg;
-    pcl::toROSMsg(local_occ, occ_msg);
-    occ_msg.header.frame_id = "map";
-    occ_msg.header.stamp = ros::Time::now();
+    pcl::toROSMsg(local_occ, local_map_occ_msg_);
+    local_map_occ_msg_.header.frame_id = "map";
+    local_map_occ_msg_.header.stamp = ros::Time::now();
 
-    // ===== 发布 free（可选）=====
-    // sensor_msgs::PointCloud2 free_msg;
-    // pcl::toROSMsg(local_free, free_msg);
-    // free_msg.header.frame_id = "map";
-    // free_msg.header.stamp = ros::Time::now();
 
-    pointcloud_pub_.publish(occ_msg);
-
-    ROS_INFO("Local map: %zu occupied, %zu free",
-             local_occ.size(), local_free.size());
 }
-
-
 
 
 
@@ -461,26 +483,32 @@ void MappingSimulator::publishCallback(const ros::TimerEvent&) {
     esdf_pub_.publish(esdf_msg_);
 
 
-
-
-    // simulate lidar
-    Eigen::Vector3d origin(0, 0, 1.0);  // 传感器位置
-    double yaw = 0.0;
-    double pitch = 15.0 * M_PI / 180.0;
-    double roll = 0.0;
-
-    Eigen::Matrix3d R =
-    (Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-        Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-        Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()))
-    .toRotationMatrix();
-
-    simulateLidar(origin, R);
-    extractLocalMap(origin, local_map_size_x,local_map_size_y,local_map_size_z);
-
-
-
-    ROS_INFO("Published OctoMap + ESDF + Lidar");
+    ROS_INFO("Published Map + ESDF");
 }
+
+
+
+void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
+
+
+    std::cout<<"simdata_pubCallback"<<std::endl;
+    // ===== lidar =====
+    if (!lidar_pointcloud_msg_.data.empty()) {
+        lidar_pub_.publish(lidar_pointcloud_msg_);
+    } else {
+        ROS_WARN_THROTTLE(1.0, "Lidar msg is empty, skip publish");
+    }
+
+    // ===== local map =====
+    if (!local_map_occ_msg_.data.empty()) {
+        pointcloud_pub_.publish(local_map_occ_msg_);
+    } else {
+        ROS_WARN_THROTTLE(1.0, "Local map msg is empty, skip publish");
+    }
+
+    ROS_INFO("Published localmap + lidar");
+}
+
+
 
 }

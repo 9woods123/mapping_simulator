@@ -25,6 +25,8 @@ public:
     void generateESDF();
     void publishMaps();
     void publishCallback(const ros::TimerEvent&);
+    void simdata_pubCallback(const ros::TimerEvent&);
+
     void convertOctomapToRosMsg();
     void convertEsdfToPointCloudMsg();
     bool getMinCollisionDistanceAndGradient(float x, float y, float z, 
@@ -34,10 +36,12 @@ public:
     void getMapBounds(double &min_x, double &min_y, double &min_z,double &max_x, double &max_y, double &max_z);
     
 
+    void resetMap(std::string octomap_file_);
 
-    void simulateLidar(const Eigen::Vector3d& origin,const Eigen::Matrix3d& R);
-    void extractLocalMap(const Eigen::Vector3d& center, 
-                                        double size_x, double size_y, double size_z);
+    void simulateLidar(const Eigen::Vector3d& origin,const Eigen::Matrix3d& R,pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud );
+
+    void extractLocalMap(const Eigen::Vector3d& center, pcl::PointCloud<pcl::PointXYZ> & local_occ,
+                                        pcl::PointCloud<pcl::PointXYZ> & local_free);
 
 
 
@@ -60,6 +64,7 @@ private:
     ros::Publisher pointcloud_pub_;
     ros::Publisher esdf_pub_;
     ros::Timer timer_; // 定时器
+    ros::Timer simdata_pub_timer_; // 定时器
 
     std::string octomap_file_;
     double resolution_;
@@ -73,6 +78,9 @@ private:
     // ROS 消息
     octomap_msgs::Octomap octomap_msg_;                // 用于存储 OctoMap 的 ROS 消息
     sensor_msgs::PointCloud2 esdf_msg_;               // 用于存储 ESDF 的 ROS 点云消息
+
+    sensor_msgs::PointCloud2 local_map_occ_msg_;
+    sensor_msgs::PointCloud2 lidar_pointcloud_msg_;
 
 
 

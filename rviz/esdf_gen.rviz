@@ -70,7 +70,7 @@ Visualization Manager:
       Octomap Topic: /octomap
       Queue Size: 5
       Value: true
-      Voxel Alpha: 0.10000000149011612
+      Voxel Alpha: 0.029999999329447746
       Voxel Coloring: Z-Axis
       Voxel Rendering: Occupied Voxels
     - Alpha: 0.5
@@ -242,9 +242,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6597967743873596
+      Pitch: 0.8597966432571411
       Target Frame: <Fixed Frame>
-      Yaw: 3.5454025268554688
+      Yaw: 3.0704007148742676
     Saved: ~
 Window Geometry:
   Displays:

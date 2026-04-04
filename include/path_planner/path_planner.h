@@ -10,7 +10,7 @@
 #include "visualization.h"
 #include "ompl/geometric/planners/prm/PRM.h"
 
-#include "esdf_map_generator/esdf_map_generator.h"
+#include "mapping_simulator/mapping_simulator.h"
 
 namespace ob = ompl::base;
 namespace og = ompl::geometric;
@@ -26,7 +26,8 @@ struct Obstacle
 class PathPlanner
 {
 public:
-    PathPlanner(bool is_2D_planning = false, double fixed_z = 0.5); // 默认值
+    PathPlanner(std::shared_ptr<mapping_simulator::MappingSimulator> mapping_simulator,
+    bool is_2D_planning = false, double fixed_z = 0.5); // 默认值
 
     /**
      * @brief 设置规划起点
@@ -51,8 +52,15 @@ public:
      */
     bool solve(double time_limit);
     
+    void sampleValidStartGoal(double& sx, double& sy, double& sz,double& gx, double& gy, double& gz);
+    
+    std::vector<Eigen::Vector3d> resamplePath(const std::vector<Node>& path,double resolution);
+
+
     std::pair<std::vector<Node>, std::vector<Edge>> extractGraph() const;
     std::vector<Node> extractSolutionPath() const;
+
+
 
 private:
     /**
@@ -60,7 +68,7 @@ private:
      * @param state 要检查的状态
      * @return 如果状态有效返回 true，否则返回 false
      */
-    static bool isStateValid(const ob::State *state);
+    bool isStateValid(const ob::State *state);
 
     bool is_2D_planning_=false;
     double fixed_z_=0.5;
@@ -70,11 +78,15 @@ private:
     std::shared_ptr<og::PRMstar> planner_;
 
 
-    static inline std::shared_ptr<EsdfMap::ESDFMapGenerator> esdf_map_generator_;
+    std::shared_ptr<mapping_simulator::MappingSimulator> mapping_simulator_;
 
     // static inline EsdfMap::ESDFMapGenerator esdf_map_generator_; ///< ESDF 地图生成器实例
     static constexpr double collision_threshold = 0.1;           ///< 碰撞阈值
     
+    inline double randUniform(double a, double b)
+    {
+        return a + (b - a) * ((double)rand() / RAND_MAX);
+    };
 
 };
 

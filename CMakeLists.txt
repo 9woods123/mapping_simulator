@@ -45,29 +45,30 @@ mapping_simulator
 )
 
 
-# add_library(visualization src/path_planner/visualization.cpp)
-# target_link_libraries(visualization
-#   ${catkin_LIBRARIES}
-# )
+add_library(visualization src/path_planner/visualization.cpp)
+target_link_libraries(visualization
+  ${catkin_LIBRARIES}
+)
 
 
-# add_executable(path_planner src/path_planner/path_planner.cpp)
-# target_link_libraries(path_planner
-#   mapping_simulator
-#   ${OMPL_LIBRARIES}  
-#   visualization
-# )
+add_executable(path_planner src/path_planner/path_planner.cpp)
+target_link_libraries(path_planner
+  mapping_simulator
+  ${OMPL_LIBRARIES}  
+  visualization
+)
 
 
-# add_library(path_planner_lib src/path_planner/path_planner.cpp)
-# target_link_libraries(path_planner_lib
-#   mapping_simulator
-#   ${OMPL_LIBRARIES}  
-#   visualization
-# )
+add_library(path_planner_lib src/path_planner/path_planner.cpp)
+target_link_libraries(path_planner_lib
+  mapping_simulator
+  ${OMPL_LIBRARIES}  
+  visualization
+)
 
 
-# add_executable(path_planning_demo src/path_planning_demo/path_planning_demo.cpp)
-# target_link_libraries(path_planning_demo
-#  path_planner_lib
-# )
+add_executable(data_generation_node src/data_generation/data_generation_node.cpp)
+target_link_libraries(data_generation_node
+ path_planner_lib
+ mapping_simulator
+)

@@ -1,13 +1,23 @@
 #include "path_planner/path_planner.h"
 
-PathPlanner::PathPlanner(bool is_2D_planning, double fixed_z)
-    : is_2D_planning_(is_2D_planning), fixed_z_(fixed_z)
+PathPlanner::PathPlanner(
+    std::shared_ptr<mapping_simulator::MappingSimulator> mapping_simulator,
+    bool is_2D_planning,
+    double fixed_z)
+    : mapping_simulator_(mapping_simulator),
+      is_2D_planning_(is_2D_planning),
+      fixed_z_(fixed_z)
 {
+
+    if (!mapping_simulator_)
+    {
+        throw std::runtime_error("PathPlanner: mapping_simulator is null!");
+    }
+
     space_ = std::make_shared<ob::SE3StateSpace>();
-    esdf_map_generator_ = std::make_shared<EsdfMap::ESDFMapGenerator>();
 
     double min_x, min_y, min_z, max_x, max_y, max_z;
-    esdf_map_generator_->getMapBounds(min_x, min_y, min_z, max_x, max_y, max_z);
+    mapping_simulator_->getMapBounds(min_x, min_y, min_z, max_x, max_y, max_z);
 
     std::cout << "==================Real-world Boundaries===============" << std::endl;
     std::cout << "  X: [" << min_x << ", " << max_x << "]" << std::endl;
@@ -177,10 +187,9 @@ bool PathPlanner::isStateValid(const ob::State *state)
     float current_state_z = pos->values[2];
 
     // using octomap collision check 
-    return !esdf_map_generator_->isPointOccupiedWithVolume(current_state_x,current_state_y,current_state_z,0.25);
+    return !mapping_simulator_->isPointOccupiedWithVolume(current_state_x,current_state_y,current_state_z,0.25);
 
     // or using esdf collision check 
-
     // float distance;
     // Eigen::Vector3f gradient;
     // float safe_dist=0.5;
@@ -196,6 +205,52 @@ bool PathPlanner::isStateValid(const ob::State *state)
     // return false;
 }
 
+void PathPlanner::sampleValidStartGoal(
+    double& sx, double& sy, double& sz,
+    double& gx, double& gy, double& gz)
+{
+    double min_x, min_y, min_z, max_x, max_y, max_z;
+    mapping_simulator_->getMapBounds(min_x, min_y, min_z, max_x, max_y, max_z);
+
+    while (true)
+    {
+        sx = randUniform(min_x, max_x);
+        sy = randUniform(min_y, max_y);
+        sz = randUniform( 0.5, max_z);
+
+        gx = randUniform(min_x, max_x);
+        gy = randUniform(min_y, max_y);
+        gz = randUniform( 0.5, max_z);
+
+        if (!mapping_simulator_->isPointOccupiedWithVolume(sx, sy, sz,0.35) &&
+            !mapping_simulator_->isPointOccupiedWithVolume(gx, gy, gz,0.35))
+            break;
+    }
+}
+
+std::vector<Eigen::Vector3d> PathPlanner::resamplePath(
+    const std::vector<Node>& path,
+    double resolution)
+{
+    std::vector<Eigen::Vector3d> result;
+
+    for (size_t i = 0; i < path.size() - 1; ++i)
+    {
+        Eigen::Vector3d p0(path[i].x,path[i].y,path[i].z);
+        Eigen::Vector3d p1(path[i+1].x,path[i+1].y,path[i+1].z);
+
+        double dist = (p1 - p0).norm();
+        int steps = std::ceil(dist / resolution);
+
+        for (int j = 0; j <= steps; ++j)
+        {
+            double t = double(j) / steps;
+            result.push_back(p0 + t * (p1 - p0));
+        }
+    }
+
+    return result;
+}
 
 int main(int argc, char **argv)
 {
@@ -217,7 +272,8 @@ int main(int argc, char **argv)
     nh.param("goal_z", goal_z, 2.5);
 
     // 创建路径规划器实例
-    PathPlanner planner;
+    auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
+    PathPlanner planner(ms, false, 1.0);
 
     // 设置起点和终点
     planner.setStart(start_x, start_y, start_z);
