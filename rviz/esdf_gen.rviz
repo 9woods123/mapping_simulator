@@ -35,7 +35,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: PointCloud2
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -103,10 +103,10 @@ Visualization Manager:
       Value: false
     - Class: rviz/MarkerArray
       Enabled: true
-      Marker Topic: /prm_visual
+      Marker Topic: /rrtstar_vis
       Name: MarkerArray
       Namespaces:
-        {}
+        rrt_graph: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -131,7 +131,7 @@ Visualization Manager:
       Marker Topic: /visualization_start_goal
       Name: Marker
       Namespaces:
-        {}
+        start_goal: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -226,7 +226,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 37.5471305847168
+      Distance: 41.455196380615234
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -234,17 +234,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 2.3175833225250244
-        Y: -0.7237501740455627
-        Z: -1.611739993095398
+        X: -1.1048005819320679
+        Y: -0.4624824821949005
+        Z: -1.8386054039001465
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8597966432571411
+      Pitch: 1.214796543121338
       Target Frame: <Fixed Frame>
-      Yaw: 3.0704007148742676
+      Yaw: 3.205399513244629
     Saved: ~
 Window Geometry:
   Displays:

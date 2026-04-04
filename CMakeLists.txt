@@ -13,7 +13,6 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(octomap REQUIRED)
 find_package(PCL REQUIRED)
-find_package(ompl REQUIRED)
 
 catkin_package(
  INCLUDE_DIRS include
@@ -27,7 +26,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${octomap_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${OMPL_INCLUDE_DIRS}
 )
 
 add_library(mapping_simulator src/mapping_simulator/mapping_simulator.cpp)
@@ -51,24 +49,24 @@ target_link_libraries(visualization
 )
 
 
-add_executable(path_planner src/path_planner/path_planner.cpp)
-target_link_libraries(path_planner
+
+
+
+add_library(rrtstar_lib src/path_planner/rrtstar.cpp)
+target_link_libraries(rrtstar_lib
   mapping_simulator
-  ${OMPL_LIBRARIES}  
+  visualization
+)
+
+add_executable(rrtstar src/path_planner/rrtstar.cpp)
+target_link_libraries(rrtstar
+  mapping_simulator
   visualization
 )
 
 
-add_library(path_planner_lib src/path_planner/path_planner.cpp)
-target_link_libraries(path_planner_lib
-  mapping_simulator
-  ${OMPL_LIBRARIES}  
-  visualization
-)
-
-
-add_executable(data_generation_node src/data_generation/data_generation_node.cpp)
-target_link_libraries(data_generation_node
- path_planner_lib
- mapping_simulator
-)
+# add_executable(data_generation_node src/data_generation/data_generation_node.cpp)
+# target_link_libraries(data_generation_node
+#  path_planner_lib
+#  mapping_simulator
+# )

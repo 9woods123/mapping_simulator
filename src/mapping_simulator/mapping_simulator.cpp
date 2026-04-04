@@ -76,8 +76,10 @@ void MappingSimulator::loadOctomap() {
 
     // 生成 ESDF
     // generateESDF();
-    convertOctomapToRosMsg(); 
     // convertEsdfToPointCloudMsg();
+
+    convertOctomapToRosMsg(); 
+
 }
 
 
@@ -114,8 +116,9 @@ void MappingSimulator::resetMap(std::string octomap_file_)
 
     // 生成 ESDF
     // generateESDF();
-    convertOctomapToRosMsg(); 
     // convertEsdfToPointCloudMsg();
+
+    convertOctomapToRosMsg();
 }
 
 
@@ -384,6 +387,7 @@ bool MappingSimulator::isPointOccupiedWithVolume(double x, double y, double z, d
     return false;
 }
 
+
 void MappingSimulator::simulateLidar(
     const Eigen::Vector3d& origin,
     const Eigen::Matrix3d& R,
@@ -421,7 +425,6 @@ void MappingSimulator::simulateLidar(
                 lidar_pointcloud.emplace_back(end.x(), end.y(), end.z());
             } else {
                 continue;
-                // // 没撞到 → 最大距离
                 // Eigen::Vector3d far = origin + dir * max_range_;
                 // lidar_pointcloud.emplace_back(far.x(), far.y(), far.z());
             }
@@ -483,7 +486,7 @@ void MappingSimulator::publishCallback(const ros::TimerEvent&) {
     esdf_pub_.publish(esdf_msg_);
 
 
-    ROS_INFO("Published Map + ESDF");
+    // ROS_INFO("Published Map + ESDF");
 }
 
 
@@ -491,7 +494,6 @@ void MappingSimulator::publishCallback(const ros::TimerEvent&) {
 void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
 
 
-    std::cout<<"simdata_pubCallback"<<std::endl;
     // ===== lidar =====
     if (!lidar_pointcloud_msg_.data.empty()) {
         lidar_pub_.publish(lidar_pointcloud_msg_);
@@ -506,7 +508,7 @@ void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
         ROS_WARN_THROTTLE(1.0, "Local map msg is empty, skip publish");
     }
 
-    ROS_INFO("Published localmap + lidar");
+    // ROS_INFO("Published localmap + lidar");
 }
 
 

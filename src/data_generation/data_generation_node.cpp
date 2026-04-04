@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     {
         ms->resetMap(map_file);
 
-        PathPlanner planner(ms, false, 1.0);
+        PathPlanner planner(ms, true, 1.0);
 
         for (int i = 0; i < 10; ++i)
         {

@@ -9,13 +9,13 @@ Visualization::Visualization(ros::NodeHandle &nh, const std::string &topic)
 
 }
 
-void Visualization::setGraphData(const std::vector<Node> &nodes, const std::vector<Edge> &edges)
+void Visualization::setGraphData(const std::vector<Node3D*> &nodes, const std::vector<Edge3D> &edges)
 {
     nodes_ = nodes; // 存储节点数据
     edges_ = edges; // 存储边数据
 }
 
-void Visualization::setPathData(const std::vector<Node> &path_points)
+void Visualization::setPathData(const std::vector<Node3D*> &path_points)
 {
     path_ = path_points; // 存储路径点数据
 }
@@ -31,7 +31,7 @@ void Visualization::timerCallback(const ros::TimerEvent &)
         visualization_msgs::Marker node_marker;
         node_marker.header.frame_id = "map";
         node_marker.header.stamp = ros::Time::now();
-        node_marker.ns = "prm_graph";
+        node_marker.ns = "rrt_graph";
         node_marker.id = 0;
         node_marker.type = visualization_msgs::Marker::SPHERE_LIST;
         node_marker.action = visualization_msgs::Marker::ADD;
@@ -46,9 +46,9 @@ void Visualization::timerCallback(const ros::TimerEvent &)
         for (const auto &node : nodes_)
         {
             geometry_msgs::Point p;
-            p.x = node.x;
-            p.y = node.y;
-            p.z = node.z;
+            p.x = node->pos.x();
+            p.y = node->pos.y();
+            p.z = node->pos.z();
             node_marker.points.push_back(p);
         }
         marker_array.markers.push_back(node_marker);
@@ -60,7 +60,7 @@ void Visualization::timerCallback(const ros::TimerEvent &)
         visualization_msgs::Marker edge_marker;
         edge_marker.header.frame_id = "map";
         edge_marker.header.stamp = ros::Time::now();
-        edge_marker.ns = "prm_graph";
+        edge_marker.ns = "rrt_graph";
         edge_marker.id = 1;
         edge_marker.type = visualization_msgs::Marker::LINE_LIST;
         edge_marker.action = visualization_msgs::Marker::ADD;
@@ -73,13 +73,13 @@ void Visualization::timerCallback(const ros::TimerEvent &)
         for (const auto &edge : edges_)
         {
             geometry_msgs::Point p1, p2;
-            p1.x = nodes_[edge.from].x;
-            p1.y = nodes_[edge.from].y;
-            p1.z = nodes_[edge.from].z;
+            p1.x = edge.from->pos.x();
+            p1.y = edge.from->pos.y();
+            p1.z = edge.from->pos.z();
 
-            p2.x = nodes_[edge.to].x;
-            p2.y = nodes_[edge.to].y;
-            p2.z = nodes_[edge.to].z;
+            p2.x =  edge.to->pos.x();
+            p2.y =  edge.to->pos.y();
+            p2.z =  edge.to->pos.z();
 
             edge_marker.points.push_back(p1);
             edge_marker.points.push_back(p2);
@@ -106,9 +106,9 @@ void Visualization::timerCallback(const ros::TimerEvent &)
         for (const auto &node : path_)
         {
             geometry_msgs::Point p;
-            p.x = node.x;
-            p.y = node.y;
-            p.z = node.z;
+            p.x = node->pos.x();
+            p.y = node->pos.y();
+            p.z = node->pos.z();
             path_marker.points.push_back(p);
 
         }
