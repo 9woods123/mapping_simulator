@@ -70,7 +70,7 @@ public:
         file << map_min_z << " " << map_max_z << "\n";
         
         // 局部地图边界框
-        file << local_map_size_x << " " << local_map_size_y <<local_map_size_z<< "\n";
+        file << local_map_size_x << " " << local_map_size_y <<" "<<local_map_size_z<< "\n";
 
         // ========== 2. 点云数量 ==========
         file << lidar_pointcloud.size() << "\n";

@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 
                         pose,
                         R,
-                        
+
                         map_resolution,  // resolution
                         sensor_range,
 
@@ -190,8 +190,7 @@ int main(int argc, char **argv)
                     double map_time =
                         std::chrono::duration<double, std::milli>(t3 - t2).count();
 
-                    ROS_INFO("Time: lidar=%.2f ms, map=%.2f ms | pts: %zu",
-                            lidar_time, map_time, lidar_pointcloud.size());
+
 
                     ros::spinOnce();
                     // ros::Duration(1000).sleep();
