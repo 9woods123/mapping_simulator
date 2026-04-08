@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(mapping_simulator)
 
+
+
+
+
+
+
+
+set(CMAKE_CXX_STANDARD 17)      # 或 14、17
+set(CMAKE_CXX_STANDARD_REQUIRED ON)  # 必须
+set(CMAKE_CXX_EXTENSIONS OFF)   # 禁用编译器扩展
+
+
 find_package(catkin REQUIRED COMPONENTS
   mavros
   mavros_msgs

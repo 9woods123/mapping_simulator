@@ -1,5 +1,11 @@
 #include "mapping_simulator/mapping_simulator.h"
 
+#include <chrono>
+
+using Clock = std::chrono::high_resolution_clock;
+
+
+
 namespace mapping_simulator{
 
 MappingSimulator::MappingSimulator()
@@ -11,12 +17,12 @@ MappingSimulator::MappingSimulator()
     nh_private_.param("hrz_lines", hrz_lines_, 120);
     nh_private_.param("vtc_lines", vtc_lines_, 16);
     nh_private_.param("vtc_fov_deg", vtc_fov_deg, 60.0);
-    nh_private_.param("max_range", max_range_, 10.0); // meter
+    nh_private_.param("max_range", max_range_, 5.0); // meter
 
     //local map params
-    nh_private_.param("local_map_size_x", local_map_size_x, 15.0);  // meter
-    nh_private_.param("local_map_size_y", local_map_size_y, 15.0);
-    nh_private_.param("local_map_size_z", local_map_size_z, 4.0);
+    nh_private_.param("local_map_size_x", local_map_size_x, 10.0);  // meter
+    nh_private_.param("local_map_size_y", local_map_size_y, 10.0);
+    nh_private_.param("local_map_size_z", local_map_size_z, 8.0);
 
     vtc_fov_rad_ = vtc_fov_deg / 180.0 * M_PI;
 
@@ -26,15 +32,19 @@ MappingSimulator::MappingSimulator()
     
     octomap_pub_ = nh_.advertise<octomap_msgs::Octomap>("octomap", 1, true);
     pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("octomap_pointcloud", 1, true);
+    gt_pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("octomap_pointcloud_gt", 1, true);
+
     esdf_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("esdf_pointcloud", 1, true);
     lidar_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("lidar_points", 1);
 
-    timer_ = nh_.createTimer(ros::Duration(1.0), &MappingSimulator::publishCallback, this);
+    timer_ = nh_.createTimer(ros::Duration(100.0), &MappingSimulator::publishCallback, this);
 
     simdata_pub_timer_ = nh_.createTimer(ros::Duration(0.05), &MappingSimulator::simdata_pubCallback, this);
 
     loadOctomap();
 }
+
+
 
 MappingSimulator::~MappingSimulator() {}
 
@@ -47,6 +57,23 @@ tree_.getMetricMax(max_x, max_y, max_z);
 
 }
 
+
+
+void MappingSimulator::getLocalMapSize(double &local_x_size, double &local_y_size, double &local_z_size)
+{
+local_x_size=local_map_size_x;
+local_y_size=local_map_size_y;
+local_z_size=local_map_size_z;
+}
+
+double MappingSimulator::getMapResolution(){
+return   tree_.getResolution();
+}
+
+double MappingSimulator::getLidarMaxRange()
+{
+return max_range_;
+}
 
 void MappingSimulator::loadOctomap() {
 
@@ -119,6 +146,14 @@ void MappingSimulator::resetMap(std::string octomap_file_)
     // convertEsdfToPointCloudMsg();
 
     convertOctomapToRosMsg();
+
+    ros::Time now = ros::Time::now();
+    octomap_msg_.header.stamp = now;
+    esdf_msg_.header.stamp = now;
+
+    octomap_pub_.publish(octomap_msg_);
+    esdf_pub_.publish(esdf_msg_);
+
 }
 
 
@@ -394,8 +429,19 @@ void MappingSimulator::simulateLidar(
     pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud
     )
 {
+
+
+    //lidar 数据的坐标系有两个选择，由于lidar安装在机器人上时，即使是倾斜安装，
+    //我们通常也是拿到baselink下的雷达数据，机器人静止时，通常rp为0。所以我们在模拟lidar数据时，
+    //如果将lidar数据转换到baselink下，可以忽略安装倾角带来的roll 和 pitch，只计算yaw。
+
+    //另外，还有一种选择，是在mapping simulator里，都是用“map”作为坐标系，即lidar point cloud的点坐标
+    //都是在世界坐标系下的。这肯定不能拿来训练，需要我们拿到数据后，自己处理。
+
+
     lidar_pointcloud.clear();
 
+    
     double hrz_res = 2 * M_PI / hrz_lines_;
     double vtc_res = vtc_fov_rad_ / vtc_lines_;
 
@@ -424,6 +470,7 @@ void MappingSimulator::simulateLidar(
             if (hit) {
                 lidar_pointcloud.emplace_back(end.x(), end.y(), end.z());
             } else {
+                // 真实的激光雷达不会返回超量程的点，所以这里我们直接不要这个点。
                 continue;
                 // Eigen::Vector3d far = origin + dir * max_range_;
                 // lidar_pointcloud.emplace_back(far.x(), far.y(), far.z());
@@ -467,23 +514,191 @@ void MappingSimulator::extractLocalMap(const Eigen::Vector3d& center, pcl::Point
             local_free.push_back(pt);
     }
 
-    pcl::toROSMsg(local_occ, local_map_occ_msg_);
-    local_map_occ_msg_.header.frame_id = "map";
-    local_map_occ_msg_.header.stamp = ros::Time::now();
-
+    pcl::toROSMsg(local_occ, local_map_occ_gt_msg_);
+    local_map_occ_gt_msg_.header.frame_id = "map";
+    local_map_occ_gt_msg_.header.stamp = ros::Time::now();
 
 }
 
 
+void MappingSimulator::extractLocalMap(
+    const Eigen::Vector3d& center, 
+    const pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud,
+    pcl::PointCloud<pcl::PointXYZ>& local_occ,      // 输入：建图得到的障碍物
+    pcl::PointCloud<pcl::PointXYZ>& local_free,     // 输入：建图得到的自由空间
+    pcl::PointCloud<pcl::PointXYZ>& local_occ_gt,   // 输出：真值障碍物
+    pcl::PointCloud<pcl::PointXYZ>& local_free_gt   // 输出：真值自由空间
+) {
+    local_occ.clear();
+    local_free.clear();
+    local_occ_gt.clear();
+    local_free_gt.clear();
+
+    // 1. 定义局部地图边界
+    double min_x = center.x() - local_map_size_x / 2.0;
+    double max_x = center.x() + local_map_size_x / 2.0;
+    double min_y = center.y() - local_map_size_y / 2.0;
+    double max_y = center.y() + local_map_size_y / 2.0;
+    double min_z = center.z() - local_map_size_z / 2.0;
+    double max_z = center.z() + local_map_size_z / 2.0;
+
+    octomap::point3d min_pt(min_x, min_y, min_z);
+    octomap::point3d max_pt(max_x, max_y, max_z);
+
+    // 确保是OcTree类型
+    octomap::OcTree* octree = dynamic_cast<octomap::OcTree*>(&tree_);
+    if (!octree) {
+        ROS_ERROR("tree_ is not an OcTree!");
+        return;
+    }
+
+    double voxel_size = octree->getResolution();
+    
+    // 2. 从点云模拟建图过程
+    simulateMappingFromPointCloud(
+        center, lidar_pointcloud, 
+        local_occ, local_free,
+        min_pt, max_pt, voxel_size
+    );
+
+    // 3. 获取真值（完整地图）
+    for (auto it = tree_.begin_leafs_bbx(min_pt, max_pt),
+            end = tree_.end_leafs_bbx();
+        it != end; ++it)
+    {
+        pcl::PointXYZ pt(it.getX(), it.getY(), it.getZ());
+
+        if (tree_.isNodeOccupied(*it))
+            local_occ_gt.push_back(pt);
+        else
+            local_free_gt.push_back(pt);
+    }
+
+    // ROS_INFO("Local map extracted: %zu occ, %zu free (mapping) | %zu occ_gt, %zu free_gt (ground truth)",
+    //          local_occ.size(), local_free.size(),
+    //          local_occ_gt.size(), local_free_gt.size());
+
+    // 发布消息
+    pcl::toROSMsg(local_occ_gt, local_map_occ_gt_msg_);
+    local_map_occ_gt_msg_.header.frame_id = "map";
+    local_map_occ_gt_msg_.header.stamp = ros::Time::now();
+
+    pcl::toROSMsg(local_occ, local_map_occ_msg_);
+    local_map_occ_msg_.header.frame_id = "map";
+    local_map_occ_msg_.header.stamp = ros::Time::now();
+    
+}
+
+
+// 核心：从点云模拟建图
+void MappingSimulator::simulateMappingFromPointCloud(
+    const Eigen::Vector3d& sensor_origin,
+    const pcl::PointCloud<pcl::PointXYZ>& lidar_points,
+    pcl::PointCloud<pcl::PointXYZ>& local_occ,
+    pcl::PointCloud<pcl::PointXYZ>& local_free,
+    const octomap::point3d& min_bound,
+    const octomap::point3d& max_bound,
+    double voxel_size) 
+{
+    // 用于去重的集合
+    std::unordered_set<std::string> occupied_voxels;
+    std::unordered_set<std::string> free_voxels;
+    
+    // 转换sensor_origin
+    octomap::point3d sensor_origin_octo(
+        sensor_origin.x(), sensor_origin.y(), sensor_origin.z()
+    );
+
+    // 方案A：简单模拟 - 从每个点发射射线
+    for (const auto& point : lidar_points) {
+        // 1. 障碍物：点本身所在的体素
+        octomap::point3d hit_point(point.x, point.y, point.z);
+        
+        // 获取体素坐标
+        octomap::OcTree* octree = dynamic_cast<octomap::OcTree*>(&tree_);
+        if (!octree) continue;
+        
+        octomap::OcTreeKey hit_key = octree->coordToKey(hit_point);
+        octomap::point3d voxel_center = octree->keyToCoord(hit_key);
+        
+        // 检查是否在边界内
+        if (voxel_center.x() < min_bound.x() || voxel_center.x() > max_bound.x() ||
+            voxel_center.y() < min_bound.y() || voxel_center.y() > max_bound.y() ||
+            voxel_center.z() < min_bound.z() || voxel_center.z() > max_bound.z()) {
+            continue;  // 不在局部地图范围内
+        }
+        
+        // 去重
+        std::string occ_key = std::to_string(hit_key[0]) + "_" + 
+                             std::to_string(hit_key[1]) + "_" + 
+                             std::to_string(hit_key[2]);
+
+        if (occupied_voxels.find(occ_key) == occupied_voxels.end()) {
+            // 当occupied_voxels 中没有这个occ_key的时候，即当没见过这个voxel的时候
+
+            occupied_voxels.insert(occ_key);
+            local_occ.push_back(pcl::PointXYZ(
+                voxel_center.x(), voxel_center.y(), voxel_center.z()
+            ));
+        }
+        
+        // 2. 自由空间：从传感器到击中点的射线
+        Eigen::Vector3d dir(
+            point.x - sensor_origin.x(),
+            point.y - sensor_origin.y(),
+            point.z - sensor_origin.z()
+        );
+        dir.normalize();
+        
+        octomap::point3d ray_dir(dir.x(), dir.y(), dir.z());
+        
+        // 计算距离
+        double distance = (hit_point - sensor_origin_octo).norm();
+        int num_voxels = static_cast<int>(distance / voxel_size);
+        
+        // 沿着射线标记自由空间
+        for (int i = 1; i < num_voxels; ++i) {  // 从1开始，跳过传感器位置
+            double t = i * voxel_size;
+            octomap::point3d sample_point = sensor_origin_octo + ray_dir * t;
+            
+            // 获取体素
+            octomap::OcTreeKey sample_key = octree->coordToKey(sample_point);
+            octomap::point3d sample_voxel = octree->keyToCoord(sample_key);
+            
+            // 检查边界
+            if (sample_voxel.x() < min_bound.x() || sample_voxel.x() > max_bound.x() ||
+                sample_voxel.y() < min_bound.y() || sample_voxel.y() > max_bound.y() ||
+                sample_voxel.z() < min_bound.z() || sample_voxel.z() > max_bound.z()) {
+                continue;
+            }
+            
+            // 去重
+            std::string free_key = std::to_string(sample_key[0]) + "_" + 
+                                  std::to_string(sample_key[1]) + "_" + 
+                                  std::to_string(sample_key[2]);
+            
+            // 确保这个体素没有被标记为障碍物
+            if (occupied_voxels.find(free_key) == occupied_voxels.end() &&
+                free_voxels.find(free_key) == free_voxels.end()) {
+                free_voxels.insert(free_key);
+                local_free.push_back(pcl::PointXYZ(
+                    sample_voxel.x(), sample_voxel.y(), sample_voxel.z()
+                ));
+            }
+        }
+    }
+}
 
 
 void MappingSimulator::publishCallback(const ros::TimerEvent&) {
+
     ros::Time now = ros::Time::now();
     octomap_msg_.header.stamp = now;
     esdf_msg_.header.stamp = now;
 
     octomap_pub_.publish(octomap_msg_);
     esdf_pub_.publish(esdf_msg_);
+
 
 
     // ROS_INFO("Published Map + ESDF");
@@ -493,6 +708,7 @@ void MappingSimulator::publishCallback(const ros::TimerEvent&) {
 
 void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
 
+    // auto t1 = Clock::now();
 
     // ===== lidar =====
     if (!lidar_pointcloud_msg_.data.empty()) {
@@ -501,13 +717,30 @@ void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
         ROS_WARN_THROTTLE(1.0, "Lidar msg is empty, skip publish");
     }
 
-    // ===== local map =====
+    // ===== local map gt =====
+    if (!local_map_occ_gt_msg_.data.empty()) {
+        gt_pointcloud_pub_.publish(local_map_occ_gt_msg_);
+    } else {
+        ROS_WARN_THROTTLE(1.0, "Local map msg is empty, skip publish");
+    }
+
+    // ===== local map=====
     if (!local_map_occ_msg_.data.empty()) {
         pointcloud_pub_.publish(local_map_occ_msg_);
     } else {
         ROS_WARN_THROTTLE(1.0, "Local map msg is empty, skip publish");
     }
 
+
+
+    // auto t2 = Clock::now();
+
+    // double pub_time =
+    //     std::chrono::duration<double, std::milli>(t2 - t1).count();
+
+
+
+    // ROS_INFO("Time: pub_time=%.2f ms",pub_time);
     // ROS_INFO("Published localmap + lidar");
 }
 

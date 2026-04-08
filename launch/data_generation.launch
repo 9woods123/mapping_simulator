@@ -16,6 +16,9 @@
 
     <node name="data_generation_node" pkg="mapping_simulator" type="data_generation_node" output="screen">
         <param name="octomap_file" value="$(arg octomap_file)" />
+        <!-- <param name="max_range" value="20" /> -->
+
+        
     </node>
 
 

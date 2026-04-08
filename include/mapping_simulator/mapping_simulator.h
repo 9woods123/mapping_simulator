@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <chrono>
 #include <queue>
+#include <string>       
+#include <unordered_set>
 
 namespace mapping_simulator{
 
@@ -43,8 +45,22 @@ public:
     void extractLocalMap(const Eigen::Vector3d& center, pcl::PointCloud<pcl::PointXYZ> & local_occ,
                                         pcl::PointCloud<pcl::PointXYZ> & local_free);
 
+    void extractLocalMap(const Eigen::Vector3d& center, const pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud,
+                        pcl::PointCloud<pcl::PointXYZ> & local_occ, pcl::PointCloud<pcl::PointXYZ> & local_free,
+                        pcl::PointCloud<pcl::PointXYZ> & local_occ_gt, pcl::PointCloud<pcl::PointXYZ> & local_free_gt);
+    
+    void simulateMappingFromPointCloud(
+            const Eigen::Vector3d& sensor_origin,
+            const pcl::PointCloud<pcl::PointXYZ>& lidar_points,
+            pcl::PointCloud<pcl::PointXYZ>& local_occ,
+            pcl::PointCloud<pcl::PointXYZ>& local_free,
+            const octomap::point3d& min_bound,
+            const octomap::point3d& max_bound,
+            double voxel_size);
 
-
+    void getLocalMapSize(double &local_x_size, double &local_y_size, double &local_z_size);
+    double getMapResolution();
+    double getLidarMaxRange();
 private:
     struct VoxelID {
         int x, y, z;
@@ -62,6 +78,9 @@ private:
 
     ros::Publisher octomap_pub_;
     ros::Publisher pointcloud_pub_;
+    ros::Publisher gt_pointcloud_pub_;
+
+
     ros::Publisher esdf_pub_;
     ros::Timer timer_; // 定时器
     ros::Timer simdata_pub_timer_; // 定时器
@@ -78,8 +97,9 @@ private:
     // ROS 消息
     octomap_msgs::Octomap octomap_msg_;                // 用于存储 OctoMap 的 ROS 消息
     sensor_msgs::PointCloud2 esdf_msg_;               // 用于存储 ESDF 的 ROS 点云消息
-
+    
     sensor_msgs::PointCloud2 local_map_occ_msg_;
+    sensor_msgs::PointCloud2 local_map_occ_gt_msg_;
     sensor_msgs::PointCloud2 lidar_pointcloud_msg_;
 
 

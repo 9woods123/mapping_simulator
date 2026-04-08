@@ -1,8 +1,12 @@
 #include "path_planner/rrtstar.h"
 #include "path_planner/visualization.h"
+#include "data_generation/data_generation.h"
+
 #include <chrono>
 
 using Clock = std::chrono::high_resolution_clock;
+
+
 
 int main(int argc, char **argv)
 {
@@ -12,7 +16,7 @@ int main(int argc, char **argv)
 
     ros::NodeHandle nh;
     Visualization visualization(nh, "rrtstar_vis");
-
+    DataSaver data_saver;
     // ===== 地图列表 =====
     std::vector<std::string> map_list = {
         "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap.bt",
@@ -20,17 +24,28 @@ int main(int argc, char **argv)
     };
 
     auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
+  
+    double map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_;
+    ms->getMapBounds( map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_);
+    
+    double local_size_x,local_size_y,local_size_z;
+    ms->getLocalMapSize(local_size_x,local_size_y,local_size_z);
+
+
+    double map_resolution=ms->getMapResolution();
+    double sensor_range=ms->getLidarMaxRange();
+
+    int data_id=0;
 
     for (const auto& map_file : map_list)
     {
         ms->resetMap(map_file);
 
-        RRTStarPlanner planner(ms, true, 0.75);
+        RRTStarPlanner planner(ms, true, 0);
 
 
         for (int i = 0; i < 100; ++i)
         {
-
             // double sx, sy, sz, gx, gy, gz;
             double sx = -10, sy = -10, sz = 1.5;
             double gx =  10, gy = 10, gz = 2.0;
@@ -117,8 +132,55 @@ int main(int argc, char **argv)
                     // =========================
                     // ✅ 6. Local Map（计时）
                     // =========================
-                    pcl::PointCloud<pcl::PointXYZ> occ_pointcloud, free_pointcloud;
-                    ms->extractLocalMap(pose, occ_pointcloud, free_pointcloud);
+                    pcl::PointCloud<pcl::PointXYZ> occ_pointcloud, free_pointcloud,occ_pointcloud_gt, free_pointcloud_gt;
+
+
+                    ms->extractLocalMap(pose, lidar_pointcloud, 
+                    occ_pointcloud, free_pointcloud, occ_pointcloud_gt, free_pointcloud_gt );
+    
+
+                    data_id++;
+                    data_saver.SaveData2txtfile("/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/dataset",
+                        
+                        data_id,
+
+                        pose,
+                        R,
+                        
+                        map_resolution,  // resolution
+                        sensor_range,
+
+                        map_min_x_, map_min_y_, map_min_z_, 
+                        map_max_x_, map_max_y_, map_max_z_,     
+                        local_size_x,local_size_y,local_size_z,
+
+                        lidar_pointcloud, 
+                        occ_pointcloud, 
+                        free_pointcloud, 
+                        occ_pointcloud_gt, 
+                        free_pointcloud_gt
+                    );
+
+
+    // static void SaveData2txtfile(
+    //     const std::string& output_dir,
+    //     int sample_id,
+    //     const Eigen::Vector3d& pose,
+    //     const Eigen::Matrix3d& R,
+    //     double map_resolution,
+    //     double lidar_max_range,
+    //     double map_min_x, double map_min_y,
+    //     double map_min_z, double map_max_x,
+    //     double map_max_y, double map_max_z,
+    //     double local_map_min_x, double local_map_min_y,
+    //     double local_map_min_z, double local_map_max_x,
+    //     double local_map_max_y, double local_map_max_z,
+    //     const pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud,
+    //     const pcl::PointCloud<pcl::PointXYZ>& occ_pointcloud,
+    //     const pcl::PointCloud<pcl::PointXYZ>& free_pointcloud,
+    //     const pcl::PointCloud<pcl::PointXYZ>& occ_pointcloud_gt,
+    //     const pcl::PointCloud<pcl::PointXYZ>& free_pointcloud_gt
+    // )
 
                     auto t3 = Clock::now();
 
@@ -128,11 +190,11 @@ int main(int argc, char **argv)
                     double map_time =
                         std::chrono::duration<double, std::milli>(t3 - t2).count();
 
-                    // ROS_INFO("Time: lidar=%.2f ms, map=%.2f ms | pts: %zu",
-                    //         lidar_time, map_time, lidar_pointcloud.size());
+                    ROS_INFO("Time: lidar=%.2f ms, map=%.2f ms | pts: %zu",
+                            lidar_time, map_time, lidar_pointcloud.size());
 
                     ros::spinOnce();
-                    // ros::Duration(0.5).sleep();
+                    // ros::Duration(1000).sleep();
 
                 }
             }
