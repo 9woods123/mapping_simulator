@@ -17,11 +17,11 @@ MappingSimulator::MappingSimulator()
     nh_private_.param("hrz_lines", hrz_lines_, 120);
     nh_private_.param("vtc_lines", vtc_lines_, 16);
     nh_private_.param("vtc_fov_deg", vtc_fov_deg, 60.0);
-    nh_private_.param("max_range", max_range_, 5.0); // meter
+    nh_private_.param("max_range", max_range_, 10.0); // meter
 
     //local map params
-    nh_private_.param("local_map_size_x", local_map_size_x, 10.0);  // meter
-    nh_private_.param("local_map_size_y", local_map_size_y, 10.0);
+    nh_private_.param("local_map_size_x", local_map_size_x, 16.0);  // meter
+    nh_private_.param("local_map_size_y", local_map_size_y, 16.0);
     nh_private_.param("local_map_size_z", local_map_size_z, 8.0);
 
     vtc_fov_rad_ = vtc_fov_deg / 180.0 * M_PI;
