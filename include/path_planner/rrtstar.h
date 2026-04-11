@@ -27,7 +27,7 @@ public:
 
     std::vector<Node3D*> getSolutionPath() const;
     std::pair<std::vector<Node3D*>, std::vector<Edge3D>> getGraph() const;
-    
+    void resetRandomBoundingbox();
     void sampleValidStartGoal(double& sx, double& sy, double& sz,
     double& gx, double& gy, double& gz,double distance=5.0);
 

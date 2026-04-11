@@ -18,6 +18,30 @@
 
 namespace mapping_simulator{
 
+
+// struct VoxelKey {
+//     int x, y, z;
+    
+//     VoxelKey(int ix, int iy, int iz) : x(ix), y(iy), z(iz) {}
+    
+//     bool operator==(const VoxelKey& other) const {
+//         return x == other.x && y == other.y && z == other.z;
+//     }
+    
+//     std::string toString() const {
+//         return std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(z);
+//     }
+// };
+
+// // 哈希函数
+// struct VoxelKeyHash {
+//     std::size_t operator()(const VoxelKey& k) const {
+//         // 简单哈希
+//         return ((k.x * 73856093) ^ (k.y * 19349663) ^ (k.z * 83492791));
+//     }
+// };
+
+
 class MappingSimulator {
 public:
     MappingSimulator();
@@ -42,8 +66,8 @@ public:
 
     void simulateLidar(const Eigen::Vector3d& origin,const Eigen::Matrix3d& R,pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud );
 
-    void extractLocalMap(const Eigen::Vector3d& center, pcl::PointCloud<pcl::PointXYZ> & local_occ,
-                                        pcl::PointCloud<pcl::PointXYZ> & local_free);
+    // void extractLocalMap(const Eigen::Vector3d& center, pcl::PointCloud<pcl::PointXYZ> & local_occ,
+    //                                     pcl::PointCloud<pcl::PointXYZ> & local_free);
 
     void extractLocalMap(const Eigen::Vector3d& center, const pcl::PointCloud<pcl::PointXYZ>& lidar_pointcloud,
                         pcl::PointCloud<pcl::PointXYZ> & local_occ, pcl::PointCloud<pcl::PointXYZ> & local_free,
@@ -119,7 +143,34 @@ private:
     double local_map_size_y;
     double local_map_size_z;
 
-};
-}
+    //====================================================================
+    // 坐标到体素索引
 
+    inline Eigen::Vector3i coordToVoxelIndex(
+        double x, double y, double z,
+        const octomap::point3d& min_bound,
+        double voxel_size) const {
+        return Eigen::Vector3i(
+            static_cast<int>((x - min_bound.x()) / voxel_size),
+            static_cast<int>((y - min_bound.y()) / voxel_size),
+            static_cast<int>((z - min_bound.z()) / voxel_size)
+        );
+    }
+    
+    // 体素索引到体素中心坐标
+    inline octomap::point3d voxelIndexToCenter(
+        const Eigen::Vector3i& index,
+        const octomap::point3d& min_bound,
+        double voxel_size) const {
+        return octomap::point3d(
+            min_bound.x() + (index.x() + 0.5) * voxel_size,
+            min_bound.y() + (index.y() + 0.5) * voxel_size,
+            min_bound.z() + (index.z() + 0.5) * voxel_size
+        );
+    }
+
+
+};
+
+}
 #endif // ESDF_MAP_GENERATOR_H

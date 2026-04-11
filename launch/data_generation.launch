@@ -1,6 +1,6 @@
 <launch>
 
-    <arg name="octomap_file" default="$(find mapping_simulator)/octo_binary/octomap.bt" />
+    <arg name="octomap_file" default="$(find mapping_simulator)/octo_binary/octomap_random_obstacle.bt" />
 
 
     <!-- 设置起点和终点 -->

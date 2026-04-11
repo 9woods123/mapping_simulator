@@ -9,6 +9,30 @@ RRTStarPlanner::RRTStarPlanner(std::shared_ptr<mapping_simulator::MappingSimulat
 
     ms_->getMapBounds(min_x_, min_y_, min_z_, max_x_, max_y_, max_z_);
 
+    std::cout << "[RRTStarPlanner::resetRandomBoundingbox] Map bounds: " 
+              << "x=[" << min_x_ << ", " << max_x_ << "] "
+              << "y=[" << min_y_ << ", " << max_y_ << "] "
+              << "z=[" << min_z_ << ", " << max_z_ << "]" 
+              << std::endl;
+              
+    rng_ = std::mt19937(std::random_device{}());
+    dist_x_ = std::uniform_real_distribution<double>(min_x_, max_x_);
+    dist_y_ = std::uniform_real_distribution<double>(min_y_, max_y_);
+    dist_z_ = std::uniform_real_distribution<double>(min_z_, max_z_);
+}
+
+void RRTStarPlanner::resetRandomBoundingbox()
+{
+    if (!ms_) throw std::runtime_error("MappingSimulator is null");
+
+    ms_->getMapBounds(min_x_, min_y_, min_z_, max_x_, max_y_, max_z_);
+
+    std::cout << "[RRTStarPlanner::resetRandomBoundingbox] Map bounds: " 
+              << "x=[" << min_x_ << ", " << max_x_ << "] "
+              << "y=[" << min_y_ << ", " << max_y_ << "] "
+              << "z=[" << min_z_ << ", " << max_z_ << "]" 
+              << std::endl;
+    
     rng_ = std::mt19937(std::random_device{}());
     dist_x_ = std::uniform_real_distribution<double>(min_x_, max_x_);
     dist_y_ = std::uniform_real_distribution<double>(min_y_, max_y_);

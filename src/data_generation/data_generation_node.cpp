@@ -19,8 +19,8 @@ int main(int argc, char **argv)
     DataSaver data_saver;
     // ===== 地图列表 =====
     std::vector<std::string> map_list = {
-        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap.bt",
-        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap.bt"
+        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_random_obstacle.bt",
+        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_office.bt",
     };
 
     auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
@@ -43,8 +43,8 @@ int main(int argc, char **argv)
 
         RRTStarPlanner planner(ms, true, 0);
 
-
-        for (int i = 0; i < 100; ++i)
+        int success_path_count=0;
+        while ( success_path_count <= 20)
         {
             // double sx, sy, sz, gx, gy, gz;
             double sx = -10, sy = -10, sz = 1.5;
@@ -63,7 +63,9 @@ int main(int argc, char **argv)
 
             if (success)
             {
+                
                 ROS_INFO("RRT* success!");
+                success_path_count++;
 
                 // ===== 1. path =====
                 auto path_nodes = planner.getSolutionPath();
@@ -136,7 +138,7 @@ int main(int argc, char **argv)
 
 
                     ms->extractLocalMap(pose, lidar_pointcloud, 
-                    occ_pointcloud, free_pointcloud, occ_pointcloud_gt, free_pointcloud_gt );
+                    occ_pointcloud, free_pointcloud, occ_pointcloud_gt, free_pointcloud_gt);
     
 
                     data_id++;
