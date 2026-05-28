@@ -73,6 +73,10 @@ public:
                         pcl::PointCloud<pcl::PointXYZ> & local_occ, pcl::PointCloud<pcl::PointXYZ> & local_free,
                         pcl::PointCloud<pcl::PointXYZ> & local_occ_gt, pcl::PointCloud<pcl::PointXYZ> & local_free_gt);
     
+    void extractLocalSDFMap(
+        const Eigen::Vector3d& center,
+        pcl::PointCloud<pcl::PointXYZI>& local_sdf);
+
     void simulateMappingFromPointCloud(
             const Eigen::Vector3d& sensor_origin,
             const pcl::PointCloud<pcl::PointXYZ>& lidar_points,
@@ -104,8 +108,10 @@ private:
     ros::Publisher pointcloud_pub_;
     ros::Publisher gt_pointcloud_pub_;
 
+    ros::Publisher local_esdf_pointcloud_pub_;
 
     ros::Publisher esdf_pub_;
+
     ros::Timer timer_; // 定时器
     ros::Timer simdata_pub_timer_; // 定时器
 
@@ -125,6 +131,7 @@ private:
     sensor_msgs::PointCloud2 local_map_occ_msg_;
     sensor_msgs::PointCloud2 local_map_occ_gt_msg_;
     sensor_msgs::PointCloud2 lidar_pointcloud_msg_;
+    sensor_msgs::PointCloud2 local_esdf_pointcloud_msg_;
 
 
 
@@ -142,7 +149,8 @@ private:
     double local_map_size_x;
     double local_map_size_y;
     double local_map_size_z;
-
+    double max_esdf_distance=2.0;
+    bool full_esdf_ = false;
     //====================================================================
     // 坐标到体素索引
 

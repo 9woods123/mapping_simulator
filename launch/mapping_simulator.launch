@@ -1,6 +1,6 @@
 <launch>
     <!-- 定义一个参数传递给节点 -->
-    <arg name="octomap_file" default="$(find mapping_simulator)/octo_binary/octomap.bt" />
+    <arg name="octomap_file" default="$(find mapping_simulator)/octo_binary/octomap_small.bt" />
 
     <!-- 启动 esdf_map_generator_node 并传递参数 -->
     <node name="mapping_simulator_node" pkg="mapping_simulator" type="mapping_simulator_node" output="screen">

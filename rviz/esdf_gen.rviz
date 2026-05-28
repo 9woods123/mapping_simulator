@@ -12,6 +12,7 @@ Panels:
         - /group_pointcloud1
         - /group_pointcloud1/PointCloud21
         - /group_pointcloud1/PointCloud22
+        - /group_pointcloud1/PointCloud23
       Splitter Ratio: 0.5
     Tree Height: 962
   - Class: rviz/Selection
@@ -31,7 +32,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: PointCloud2
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -102,7 +103,8 @@ Visualization Manager:
       Marker Topic: /rrtstar_vis
       Name: MarkerArray
       Namespaces:
-        {}
+        path: true
+        rrt_graph: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -127,7 +129,7 @@ Visualization Manager:
       Marker Topic: /visualization_start_goal
       Name: Marker
       Namespaces:
-        {}
+        start_goal: true
       Queue Size: 100
       Value: true
     - Class: rviz/Marker
@@ -143,31 +145,31 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.850000023841858
-            Min Value: -2.8499999046325684
+            Max Value: 0.800000011920929
+            Min Value: 0.800000011920929
             Value: true
           Axis: Z
           Channel Name: intensity
           Class: rviz/PointCloud2
           Color: 255; 255; 255
-          Color Transformer: AxisColor
+          Color Transformer: Intensity
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
-          Max Color: 255; 255; 255
-          Min Color: 0; 0; 0
+          Max Color: 52; 101; 164
+          Min Color: 239; 41; 41
           Name: PointCloud2
           Position Transformer: XYZ
           Queue Size: 10
           Selectable: true
-          Size (Pixels): 3
-          Size (m): 0.25
-          Style: Flat Squares
-          Topic: /octomap_pointcloud
+          Size (Pixels): 5
+          Size (m): 1
+          Style: Points
+          Topic: /local_esdf_gt
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -199,8 +201,8 @@ Visualization Manager:
         - Alpha: 0.44999998807907104
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 4.050000190734863
-            Min Value: -3.8499999046325684
+            Max Value: 3.9000000953674316
+            Min Value: -3.299999952316284
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -208,7 +210,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -217,13 +219,13 @@ Visualization Manager:
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.10000000149011612
+          Size (m): 0.5
           Style: Flat Squares
           Topic: /octomap_pointcloud_gt
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
       Enabled: true
       Name: group_pointcloud
   Enabled: true
@@ -254,7 +256,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 45.39793395996094
+      Distance: 62.039817810058594
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -262,17 +264,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 3.8699140548706055
-        Y: -0.9023495316505432
-        Z: -1.8248423337936401
+        X: 3.1891956329345703
+        Y: -1.3529407978057861
+        Z: -6.865898132324219
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7897968292236328
+      Pitch: 0.7947971820831299
       Target Frame: <Fixed Frame>
-      Yaw: 2.5117406845092773
+      Yaw: 2.626737117767334
     Saved: ~
 Window Geometry:
   Displays:

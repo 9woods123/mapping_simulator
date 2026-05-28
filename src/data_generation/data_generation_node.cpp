@@ -19,53 +19,54 @@ int main(int argc, char **argv)
     DataSaver data_saver;
     // ===== 地图列表 =====
     std::vector<std::string> map_list = {
-        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_random_obstacle.bt",
-        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_office.bt",
+        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_small.bt",
     };
 
     auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
   
-    double map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_;
-    ms->getMapBounds( map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_);
-    
-    double local_size_x,local_size_y,local_size_z;
-    ms->getLocalMapSize(local_size_x,local_size_y,local_size_z);
-
-
-    double map_resolution=ms->getMapResolution();
-    double sensor_range=ms->getLidarMaxRange();
 
     int data_id=0;
+    double min_distance_between_waypoints=5;   // if distance between two path points smaller 
+                                                 //  under 0.5 ,we pass to the next point 
 
     for (const auto& map_file : map_list)
     {
+
         ms->resetMap(map_file);
+        
+        double map_resolution=ms->getMapResolution();
+        double sensor_range=ms->getLidarMaxRange();
+        
+        double map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_;
+        ms->getMapBounds( map_min_x_, map_min_y_, map_min_z_, map_max_x_, map_max_y_, map_max_z_);
+        
+        double local_size_x,local_size_y,local_size_z;
+        ms->getLocalMapSize(local_size_x,local_size_y,local_size_z);
+
 
         RRTStarPlanner planner(ms, true, 0);
 
-        int success_path_count=0;
-        while ( success_path_count <= 20)
+
+        while ( data_id <= 3000)
         {
             // double sx, sy, sz, gx, gy, gz;
             double sx = -10, sy = -10, sz = 1.5;
             double gx =  10, gy = 10, gz = 2.0;
             // ===== 随机 start / goal =====
-            planner.sampleValidStartGoal(sx, sy, sz, gx, gy, gz, 10.0);
+            planner.sampleValidStartGoal(sx, sy, sz, gx, gy, gz, 5.0);
             
 
             planner.setStart(sx, sy, sz);
             planner.setGoal(gx, gy, gz);
             
             
-            bool success=planner.solve(8.0, 1.0 , 1.0);
-
+            bool success=planner.solve(20.0, 1.5 , 1.0);
 
 
             if (success)
             {
                 
                 ROS_INFO("RRT* success!");
-                success_path_count++;
 
                 // ===== 1. path =====
                 auto path_nodes = planner.getSolutionPath();
@@ -92,10 +93,17 @@ int main(int argc, char **argv)
                 // =========================
                 // ✅ 4. 遍历轨迹 → 生成数据
                 // =========================
-                for (size_t k = 0; k < path.size(); ++k)
+
+                Eigen::Vector3d last_pose = path[0];
+                for (size_t k = 1; k < path.size(); ++k)
                 {
                     Eigen::Vector3d pose = path[k];
-
+                    if ((pose - last_pose).norm() < min_distance_between_waypoints)
+                    {
+                        continue;
+                    }
+                    last_pose = pose;
+                    
                     // ===== yaw（沿路径方向）=====
                     double yaw=0;
                     if (k < path.size() - 1)
@@ -139,7 +147,32 @@ int main(int argc, char **argv)
 
                     ms->extractLocalMap(pose, lidar_pointcloud, 
                     occ_pointcloud, free_pointcloud, occ_pointcloud_gt, free_pointcloud_gt);
-    
+                    
+                    pcl::PointCloud<pcl::PointXYZI> local_sdf;
+                    ms->extractLocalSDFMap(pose, local_sdf);
+
+
+                    // =====================================================
+                    // Filter bad samples
+                    // =====================================================
+
+                    size_t occ_num  = occ_pointcloud_gt.size();
+                    size_t free_num = free_pointcloud_gt.size();
+                    size_t total_num = occ_num + free_num;
+
+                    if (total_num == 0)
+                    {
+                        ROS_WARN("Empty local map");
+                        continue;
+                    }
+
+                    // too sparse
+                    if (occ_num < 17500)
+                    {
+                        ROS_WARN("Too few occupied voxels");
+                        continue;
+                    }
+
 
                     data_id++;
                     data_saver.SaveData2txtfile("/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/dataset",
@@ -160,7 +193,8 @@ int main(int argc, char **argv)
                         occ_pointcloud, 
                         free_pointcloud, 
                         occ_pointcloud_gt, 
-                        free_pointcloud_gt
+                        free_pointcloud_gt,
+                        local_sdf
                     );
 
 
@@ -168,7 +202,7 @@ int main(int argc, char **argv)
     //     const std::string& output_dir,
     //     int sample_id,
     //     const Eigen::Vector3d& pose,
-    //     const Eigen::Matrix3d& R,
+    //     const Eigen::Matrix3d& Res6xx,
     //     double map_resolution,
     //     double lidar_max_range,
     //     double map_min_x, double map_min_y,

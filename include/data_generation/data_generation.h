@@ -31,7 +31,8 @@ public:
         const pcl::PointCloud<pcl::PointXYZ>& occ_pointcloud,
         const pcl::PointCloud<pcl::PointXYZ>& free_pointcloud,
         const pcl::PointCloud<pcl::PointXYZ>& occ_pointcloud_gt,
-        const pcl::PointCloud<pcl::PointXYZ>& free_pointcloud_gt
+        const pcl::PointCloud<pcl::PointXYZ>& free_pointcloud_gt,
+        const pcl::PointCloud<pcl::PointXYZI>& esdf_pointcloud_gt
     ) {
         // 1. 创建目录
         createDirectory(output_dir);
@@ -78,7 +79,8 @@ public:
         file << free_pointcloud.size() << "\n";
         file << occ_pointcloud_gt.size() << "\n";
         file << free_pointcloud_gt.size() << "\n";
-        
+        file << esdf_pointcloud_gt.size() << "\n";
+
         // ========== 3. 点云数据 ==========
         // 激光雷达点云
         for (const auto& p : lidar_pointcloud) {
@@ -103,6 +105,11 @@ public:
         // 真值自由点
         for (const auto& p : free_pointcloud_gt) {
             file << p.x << " " << p.y << " " << p.z << "\n";
+        }
+
+        // 真值esdf
+        for (const auto& p : esdf_pointcloud_gt) {
+            file << p.x << " " << p.y << " " << p.z <<" "<< p.intensity << "\n";
         }
         
         file.close();

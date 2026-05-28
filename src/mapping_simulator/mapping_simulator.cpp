@@ -17,12 +17,23 @@ MappingSimulator::MappingSimulator()
     nh_private_.param("hrz_lines", hrz_lines_, 120);
     nh_private_.param("vtc_lines", vtc_lines_, 16);
     nh_private_.param("vtc_fov_deg", vtc_fov_deg, 60.0);
-    nh_private_.param("max_range", max_range_, 15.0); // meter
 
+
+    // 16 / 0.2 = 80
+    // 48 / 0.3 =160
     //local map params
-    nh_private_.param("local_map_size_x", local_map_size_x, 20.0);  // meter
-    nh_private_.param("local_map_size_y", local_map_size_y, 20.0);
-    nh_private_.param("local_map_size_z", local_map_size_z, 6.4);
+    nh_private_.param("max_range", max_range_, 15.0); // meter   random
+    nh_private_.param("local_map_size_x", local_map_size_x, 16.0);  // meter
+    nh_private_.param("local_map_size_y", local_map_size_y, 16.0);
+    nh_private_.param("local_map_size_z", local_map_size_z, 8.0);
+
+    
+    // nh_private_.param("max_range", max_range_, 24.0); // meter   office
+    // nh_private_.param("local_map_size_x", local_map_size_x, 48.0);  // meter
+    // nh_private_.param("local_map_size_y", local_map_size_y, 48.0);
+    // nh_private_.param("local_map_size_z", local_map_size_z, 24.0);
+
+
 
     vtc_fov_rad_ = vtc_fov_deg / 180.0 * M_PI;
 
@@ -33,6 +44,8 @@ MappingSimulator::MappingSimulator()
     octomap_pub_ = nh_.advertise<octomap_msgs::Octomap>("octomap", 1, true);
     pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("octomap_pointcloud", 1, true);
     gt_pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("octomap_pointcloud_gt", 1, true);
+    
+    local_esdf_pointcloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("local_esdf_gt", 1, true);
 
     esdf_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("esdf_pointcloud", 1, true);
     lidar_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("lidar_points", 1);
@@ -142,8 +155,8 @@ void MappingSimulator::resetMap(std::string octomap_file_)
     ROS_INFO("Extracted %zu occupied points, %zu free points", octo_cloud_->size(), freespace_cloud_->size());
 
     // 生成 ESDF
-    // generateESDF();
-    // convertEsdfToPointCloudMsg();
+    generateESDF();
+    convertEsdfToPointCloudMsg();
 
     convertOctomapToRosMsg();
 
@@ -215,17 +228,28 @@ void MappingSimulator::generateESDF() {
             std::vector<float> point_dist_sq;
             if (octree.nearestKSearch(neighbor_point, 1, point_idx, point_dist_sq) > 0) {
                 float distance = std::sqrt(point_dist_sq[0]);
+
+                if (distance > max_esdf_distance)
+                {distance = max_esdf_distance;}
+
+
                 esdf_map_[neighbor] = distance;
 
                 // 可选：只在一定范围内传播，提升效率
-                if (distance < 0.5f) // 0.5 米内传播
+                // propagation control
+                if (full_esdf_ ||
+                    distance < max_esdf_distance)
+                {
                     bfs_queue.push(neighbor);
+                }
+
             }
         }
     }
 
     ROS_INFO("Generated ESDF with %zu entries using BFS", esdf_map_.size());
 }
+
 
 // 将 OctoMap 转换为 ROS 消息
 void MappingSimulator::convertOctomapToRosMsg() {
@@ -236,16 +260,18 @@ void MappingSimulator::convertOctomapToRosMsg() {
     octomap_msg_.header.frame_id = "map";
 }
 
+
 // 将 ESDF 转换为带颜色的 ROS 点云消息
 void MappingSimulator::convertEsdfToPointCloudMsg() {
-
+    std::cout<<"=================="<<std::endl;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr 
     esdf_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
     
     // 设置最大距离值，超过此距离的点不添加
-    float maximum_distance = 2.0f;  // 自定义的最大距离
+    float maximum_distance = max_esdf_distance;  // 自定义的最大距离
     // TODO maximum_distance is a param
-    float max_distance = 0.0f;
+    float vis_min_z_ = 0.8;
+    float vis_max_z_ = 1 ;
     
     // 遍历 ESDF 地图，筛选距离并应用渐变颜色
     for (const auto& kv : esdf_map_) {
@@ -262,22 +288,32 @@ void MappingSimulator::convertEsdfToPointCloudMsg() {
         point.y = voxel.y * resolution_;
         point.z = voxel.z * resolution_;
 
-        // 归一化距离
-        float normalized_distance = distance / maximum_distance;  // 归一化距离
+        // ===== z slice filter =====
+        if (point.z < vis_min_z_ ||
+            point.z > vis_max_z_)
+            continue;
 
         // 计算颜色（距离越小越红，距离越大越蓝，采用红橙黄绿青蓝渐变）
-        int r = 0, g = 0, b = 0;
+        float normalized_distance =
+            distance / maximum_distance;
         
-        // 红色 -> 蓝色渐变（通过 HSV 色彩空间实现）
-        if (normalized_distance <= 0.5f) {
-            r = static_cast<int>((1.0f - 2.0f * normalized_distance) * 255);   // 红色
-            g = static_cast<int>((2.0f * normalized_distance) * 255);           // 黄色到绿色
-            b = 0;                                                              // 蓝色部分
-        } else {
-            r = 0;                                                               // 红色部分
-            g = static_cast<int>((2.0f * (1.0f - normalized_distance)) * 255);   // 绿色到青色
-            b = static_cast<int>((2.0f * (normalized_distance - 0.5f)) * 255);   // 蓝色
-        }
+        // if( normalized_distance > 1)
+        // {
+        //     std::cout<<"normalized_distance"<<normalized_distance<<std::endl;
+        // }
+
+        normalized_distance =
+            std::max(0.0f,
+            std::min(1.0f, normalized_distance));
+
+        normalized_distance =
+            std::sqrt(normalized_distance);
+
+
+        int r = static_cast<int>(normalized_distance * 255);
+        int g = static_cast<int>(normalized_distance * 255);
+        int b = 255;
+
 
         // 设置点的颜色
         point.r = r;
@@ -292,6 +328,7 @@ void MappingSimulator::convertEsdfToPointCloudMsg() {
     pcl::toROSMsg(*esdf_cloud, esdf_msg_);
     esdf_msg_.header.frame_id = "map";
 }
+
 
 bool MappingSimulator::getMinCollisionDistanceAndGradient(float x, float y, float z, float& min_distance, Eigen::Vector3f& gradient) {
     // 查找 (x, y, z) 所在位置的最小碰撞距离和梯度
@@ -308,7 +345,7 @@ bool MappingSimulator::getMinCollisionDistanceAndGradient(float x, float y, floa
     if (it == esdf_map_.end()) {
         ROS_ERROR("Point (%f, %f, %f) not found in ESDF map. with ID %i,%i,%i", x, y, z,
         voxel_id.x,voxel_id.y,voxel_id.z);
-        min_distance=999;
+        min_distance=max_esdf_distance;
         gradient.setZero();
         return true;  // 如果该点没有在 ESDF 中，返回 true
     }
@@ -520,6 +557,75 @@ void MappingSimulator::simulateLidar(
 
 // }
 
+void MappingSimulator::extractLocalSDFMap(
+    const Eigen::Vector3d& center,
+    pcl::PointCloud<pcl::PointXYZI>& local_sdf)
+{
+    local_sdf.clear();
+
+    // ===== local bounds =====
+
+    double min_x = center.x() - local_map_size_x / 2.0;
+    double max_x = center.x() + local_map_size_x / 2.0;
+
+    double min_y = center.y() - local_map_size_y / 2.0;
+    double max_y = center.y() + local_map_size_y / 2.0;
+
+    double min_z = center.z() - local_map_size_z / 2.0;
+    double max_z = center.z() + local_map_size_z / 2.0;
+
+    // ===== dense voxel traversal =====
+
+    for (double x = min_x; x <= max_x; x += resolution_)
+    {
+        for (double y = min_y; y <= max_y; y += resolution_)
+        {
+            for (double z = min_z; z <= max_z; z += resolution_)
+            {
+                VoxelID voxel_id{
+                    static_cast<int>(std::floor(x / resolution_)),
+                    static_cast<int>(std::floor(y / resolution_)),
+                    static_cast<int>(std::floor(z / resolution_))
+                };
+
+                // TODO vis to check
+                // if (z < 0.8 ||
+                //     z > 1 )
+                //     continue;
+
+                auto it = esdf_map_.find(voxel_id);
+                float sdf = 0;
+
+                if (it == esdf_map_.end())
+                {
+                    sdf = max_esdf_distance;
+                }
+                else{
+                    sdf = it->second;
+                    }
+
+
+                pcl::PointXYZI pt;
+                pt.x = x;
+                pt.y = y;
+                pt.z = z;
+
+                // intensity stores sdf
+                pt.intensity = sdf;
+
+                local_sdf.push_back(pt);
+            }
+        }
+    }
+
+    
+    pcl::toROSMsg(local_sdf, local_esdf_pointcloud_msg_);
+    local_esdf_pointcloud_msg_.header.frame_id = "map";
+    local_esdf_pointcloud_msg_.header.stamp = ros::Time::now();
+
+    ROS_INFO("Extracted local SDF map with %zu voxels",
+             local_sdf.size());
+}
 
 void MappingSimulator::extractLocalMap(
     const Eigen::Vector3d& center, 
@@ -727,6 +833,13 @@ void MappingSimulator::simdata_pubCallback(const ros::TimerEvent&) {
         pointcloud_pub_.publish(local_map_occ_msg_);
     } else {
         ROS_WARN_THROTTLE(1.0, "Local map msg is empty, skip publish");
+    }
+
+    // ===== local map=====
+    if (!local_map_occ_gt_msg_.data.empty()) {
+        local_esdf_pointcloud_pub_.publish(local_esdf_pointcloud_msg_);
+    } else {
+        ROS_WARN_THROTTLE(1.0, "local_map_occ_gt_msg_ is empty, skip publish");
     }
 
 
