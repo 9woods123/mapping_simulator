@@ -22,7 +22,7 @@ MappingSimulator::MappingSimulator()
     // 16 / 0.2 = 80
     // 48 / 0.3 =160
     //local map params
-    nh_private_.param("max_range", max_range_, 15.0); // meter   random
+    nh_private_.param("max_range", max_range_, 10.0); // meter   random
     nh_private_.param("local_map_size_x", local_map_size_x, 16.0);  // meter
     nh_private_.param("local_map_size_y", local_map_size_y, 16.0);
     nh_private_.param("local_map_size_z", local_map_size_z, 8.0);
