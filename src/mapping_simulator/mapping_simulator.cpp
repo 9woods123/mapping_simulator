@@ -22,6 +22,7 @@ MappingSimulator::MappingSimulator()
     // 16 / 0.2 = 80
     // 48 / 0.3 =160
     //local map params
+    // params for random obstacles
     nh_private_.param("max_range", max_range_, 10.0); // meter   random
     nh_private_.param("local_map_size_x", local_map_size_x, 16.0);  // meter
     nh_private_.param("local_map_size_y", local_map_size_y, 16.0);
@@ -563,54 +564,127 @@ void MappingSimulator::extractLocalSDFMap(
 {
     local_sdf.clear();
 
-    // ===== local bounds =====
+    // =====================================================
+    // local bounds
+    // =====================================================
 
-    double min_x = center.x() - local_map_size_x / 2.0;
-    double max_x = center.x() + local_map_size_x / 2.0;
+    double min_x =
+        center.x() - local_map_size_x / 2.0;
 
-    double min_y = center.y() - local_map_size_y / 2.0;
-    double max_y = center.y() + local_map_size_y / 2.0;
+    double min_y =
+        center.y() - local_map_size_y / 2.0;
 
-    double min_z = center.z() - local_map_size_z / 2.0;
-    double max_z = center.z() + local_map_size_z / 2.0;
+    double min_z =
+        center.z() - local_map_size_z / 2.0;
 
-    // ===== dense voxel traversal =====
+    // =====================================================
+    // voxel dimensions
+    // =====================================================
 
-    for (double x = min_x; x <= max_x; x += resolution_)
+    int dim_x = static_cast<int>(
+        std::round(
+            local_map_size_x / resolution_
+        )
+    );
+
+    int dim_y = static_cast<int>(
+        std::round(
+            local_map_size_y / resolution_
+        )
+    );
+
+    int dim_z = static_cast<int>(
+        std::round(
+            local_map_size_z / resolution_
+        )
+    );
+
+    // ROS_INFO(
+    //     "Local SDF grid size: %d x %d x %d = %d voxels",
+    //     dim_x,
+    //     dim_y,
+    //     dim_z,
+    //     dim_x * dim_y * dim_z
+    // );
+
+    // =====================================================
+    // dense traversal
+    // =====================================================
+
+    for (int ix = 0; ix < dim_x; ++ix)
     {
-        for (double y = min_y; y <= max_y; y += resolution_)
+        double x =
+            min_x +
+            (ix + 0.5) * resolution_;
+
+        for (int iy = 0; iy < dim_y; ++iy)
         {
-            for (double z = min_z; z <= max_z; z += resolution_)
+            double y =
+                min_y +
+                (iy + 0.5) * resolution_;
+
+            for (int iz = 0; iz < dim_z; ++iz)
             {
+                double z =
+                    min_z +
+                    (iz + 0.5) * resolution_;
+
+                // ==========================================
+                // voxel index in ESDF map
+                // ==========================================
+
                 VoxelID voxel_id{
-                    static_cast<int>(std::floor(x / resolution_)),
-                    static_cast<int>(std::floor(y / resolution_)),
-                    static_cast<int>(std::floor(z / resolution_))
+                    static_cast<int>(
+                        std::floor(
+                            x / resolution_
+                        )
+                    ),
+
+                    static_cast<int>(
+                        std::floor(
+                            y / resolution_
+                        )
+                    ),
+
+                    static_cast<int>(
+                        std::floor(
+                            z / resolution_
+                        )
+                    )
                 };
 
-                // TODO vis to check
-                // if (z < 0.8 ||
-                //     z > 1 )
-                //     continue;
+                // ==========================================
+                // query ESDF
+                // ==========================================
 
-                auto it = esdf_map_.find(voxel_id);
-                float sdf = 0;
+                float sdf;
+
+                auto it =
+                    esdf_map_.find(
+                        voxel_id
+                    );
 
                 if (it == esdf_map_.end())
                 {
-                    sdf = max_esdf_distance;
+                    sdf =
+                        max_esdf_distance;
                 }
-                else{
-                    sdf = it->second;
-                    }
+                else
+                {
+                    sdf =
+                        it->second;
+                }
 
+                // ==========================================
+                // save point
+                // ==========================================
 
                 pcl::PointXYZI pt;
+
                 pt.x = x;
                 pt.y = y;
                 pt.z = z;
 
-                // intensity stores sdf
                 pt.intensity = sdf;
 
                 local_sdf.push_back(pt);
@@ -618,13 +692,34 @@ void MappingSimulator::extractLocalSDFMap(
         }
     }
 
-    
-    pcl::toROSMsg(local_sdf, local_esdf_pointcloud_msg_);
-    local_esdf_pointcloud_msg_.header.frame_id = "map";
-    local_esdf_pointcloud_msg_.header.stamp = ros::Time::now();
+    // =====================================================
+    // sanity check
+    // =====================================================
 
-    ROS_INFO("Extracted local SDF map with %zu voxels",
-             local_sdf.size());
+    int expected_num =
+        dim_x * dim_y * dim_z;
+
+    ROS_INFO(
+        "Extracted local SDF map with %zu voxels "
+        "(expected %d)",
+        local_sdf.size(),
+        expected_num
+    );
+
+    // =====================================================
+    // publish
+    // =====================================================
+
+    pcl::toROSMsg(
+        local_sdf,
+        local_esdf_pointcloud_msg_
+    );
+
+    local_esdf_pointcloud_msg_.header.frame_id =
+        "map";
+
+    local_esdf_pointcloud_msg_.header.stamp =
+        ros::Time::now();
 }
 
 void MappingSimulator::extractLocalMap(

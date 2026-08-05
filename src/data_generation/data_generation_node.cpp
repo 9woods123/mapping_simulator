@@ -19,7 +19,7 @@ int main(int argc, char **argv)
     DataSaver data_saver;
     // ===== 地图列表 =====
     std::vector<std::string> map_list = {
-        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_small.bt",
+        "/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/octo_binary/octomap_forest_val.bt",
     };
 
     auto ms = std::make_shared<mapping_simulator::MappingSimulator>();
@@ -167,12 +167,11 @@ int main(int argc, char **argv)
                     }
 
                     // too sparse
-                    if (occ_num < 17500)
+                    if (occ_num < 7500)
                     {
                         ROS_WARN("Too few occupied voxels");
                         continue;
                     }
-
 
                     data_id++;
                     data_saver.SaveData2txtfile("/home/easy/easy_ws/zju_phd_ws/ensemble_aware_planning_ws/ros_ws/src/mapping_simulator/dataset",
