@@ -1,6 +1,3 @@
-整理成 README 风格如下，保持你的原始信息，同时把数据生成流程、参数说明、代码位置整理清楚。
-
-```markdown
 # Data Generation Pipeline
 
 
@@ -306,20 +303,12 @@ Current setting:
 
 # 6. Generated Data Description
 
-
 The generated dataset format is defined by the data saving function:
-
-mapping_simulator/include/data_generation/data_generation.h
-
 ```
-
 mapping_simulator/include/data_generation/data_generation.h
 
 ````
-
-
 The data structure is implemented in:
-
 
 ```cpp
 class DataSaver {
@@ -341,6 +330,7 @@ The exact saved fields and file organization are determined by:
 ```cpp
 DataSaver::SaveData2txtfile()
 ```
+
 
 ---
 
